@@ -10,7 +10,10 @@ import android.view.View;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Map;
+import java.util.Calendar;
 
 import fi.iki.elonen.NanoHTTPD;
 
@@ -101,8 +104,13 @@ public class MainActivity extends AppCompatActivity {
 
     private class AndroidWebServer extends NanoHTTPD {
 
+        Date lastRun;
+        SimpleDateFormat sdf;
+        String last = "Never";
+
         private AndroidWebServer(int port){
             super(port);
+            sdf = new SimpleDateFormat("EEE, MMM d, yyyy h:mm:ss a");
             try {
                 start();
             }catch(IOException e){
@@ -114,12 +122,24 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public Response serve(IHTTPSession session) {
             String msg = "<html><head><link rel=\"icon\" href=\"data:;base64,=\"></head><body>\n";
-         //   Method method = session.getMethod();
+
             Map<String, String> parms = session.getParms();
             Log.d("console","get received");
 
-            if (parms.get("cmd").equals("toggle")) {
+            if (!parms.isEmpty()) { // if there is a parameter in the get request
+                if (parms.get("cmd").equals("toggle")) { // if toggled, store lastrun into last, then set lastrun to current time
                     new TogglePower().execute();
+                    lastRun = Calendar.getInstance().getTime();
+                }
+            }
+
+            Log.d("console", "last run: " + last);
+
+            msg += "<h1>Log</h1>\n";
+            msg += "<p>Last run: " + last + "</p>\n";
+
+            if(lastRun != null) {
+                last = sdf.format(lastRun);
             }
 
             return newFixedLengthResponse( msg + "</body></html>\n" );
