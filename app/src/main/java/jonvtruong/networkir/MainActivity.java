@@ -3,6 +3,8 @@ package jonvtruong.networkir;
 import android.content.Context;
 import android.hardware.ConsumerIrManager;
 import android.os.AsyncTask;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -18,9 +20,9 @@ import java.util.Calendar;
 import fi.iki.elonen.NanoHTTPD;
 
 public class MainActivity extends AppCompatActivity {
-    final int PORT = 8888;
-    final int FREQUENCY = 38000; // carrier frequency for remote
-    final int[] POWER_CODE = {
+    private final int PORT = 8888;
+    private final int FREQUENCY = 38000; // carrier frequency for remote
+    private final int[] POWER_CODE = {
             //  on      off
             9220,4580,
             650,520,
@@ -59,11 +61,21 @@ public class MainActivity extends AppCompatActivity {
     };
 
     AndroidWebServer server;
+    private Date lastRun;
+    private SimpleDateFormat sdf;
+    private String last = "Never";
+    private String msg;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        server = new AndroidWebServer(PORT);
+    }
+
+    @Override
+    protected void onResume(){
+        super.onResume();
         server = new AndroidWebServer(PORT);
     }
 
@@ -73,6 +85,20 @@ public class MainActivity extends AppCompatActivity {
     public void powerButton(View view) {
         Log.d("console","button pressed");
         new TogglePower().execute();
+        lastRun = Calendar.getInstance().getTime();
+        updateLast();
+    }
+
+    private void updateLast(){
+        msg = "<html><head><link rel=\"icon\" href=\"data:;base64,=\"></head><body>\n";
+        Log.d("console", "last run: " + last);
+
+        msg += "<h1>Log</h1>\n";
+        msg += "<p>Last run: " + last + "</p>\n";
+
+        if(lastRun != null) {
+            last = sdf.format(lastRun);
+        }
     }
 
     /** Asynchronous task to send power command via IR **/
@@ -97,17 +123,18 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         protected void onPostExecute(String result) { //after command sent shows toast
+            Vibrator vib = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+
+            if (vib.hasVibrator()) {
+                vib.vibrate(100);
+            }
+
             Toast toast = Toast.makeText(MainActivity.this, result, Toast.LENGTH_SHORT);
             toast.show();
         }
     }
 
     private class AndroidWebServer extends NanoHTTPD {
-
-        Date lastRun;
-        SimpleDateFormat sdf;
-        String last = "Never";
-
         private AndroidWebServer(int port){
             super(port);
             sdf = new SimpleDateFormat("EEE, MMM d, yyyy h:mm:ss a");
@@ -121,8 +148,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public Response serve(IHTTPSession session) {
-            String msg = "<html><head><link rel=\"icon\" href=\"data:;base64,=\"></head><body>\n";
-
+            msg = "<html><head><link rel=\"icon\" href=\"data:;base64,=\"></head><body>\n";
             Map<String, String> parms = session.getParms();
             Log.d("console","get received");
 
@@ -133,14 +159,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
-            Log.d("console", "last run: " + last);
-
-            msg += "<h1>Log</h1>\n";
-            msg += "<p>Last run: " + last + "</p>\n";
-
-            if(lastRun != null) {
-                last = sdf.format(lastRun);
-            }
+            updateLast();
 
             return newFixedLengthResponse( msg + "</body></html>\n" );
         }
